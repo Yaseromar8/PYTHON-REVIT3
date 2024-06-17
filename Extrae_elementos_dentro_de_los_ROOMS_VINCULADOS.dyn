@@ -1,0 +1,301 @@
+{
+  "Uuid": "235b0fe2-b065-4e68-9886-4024a0be040e",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Extrae_elementos_dentro_de_los_ROOMS_VINCULADOS",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nclr.AddReference('RevitServices')\r\nfrom Autodesk.Revit.DB import *\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Obtener la vista activa\r\nactive_view = doc.ActiveView\r\n\r\n# Obtener todas las instancias de vínculos en la vista activa\r\nlink_instances = FilteredElementCollector(doc, active_view.Id).OfClass(RevitLinkInstance)\r\n\r\n# Inicializar resultados\r\nrooms_in_link = []\r\n\r\nfor link_instance in link_instances:\r\n    try:\r\n        # Obtener el documento vinculado\r\n        link_doc = link_instance.GetLinkDocument()\r\n        if link_doc:\r\n            # Obtener la transformación del vínculo\r\n            transform = link_instance.GetTransform()\r\n            \r\n            # Obtener todos los `Rooms` en el documento vinculado\r\n            room_collector = FilteredElementCollector(link_doc).OfCategory(BuiltInCategory.OST_Rooms).WhereElementIsNotElementType()\r\n            \r\n            for room in room_collector:\r\n                try:\r\n                    room_id = room.Id\r\n                    room_name = room.get_Parameter(BuiltInParameter.ROOM_NAME).AsString()\r\n                    \r\n                    # Obtener la ubicación del Room\r\n                    location = room.Location\r\n                    if not isinstance(location, LocationPoint):\r\n                        continue\r\n                    \r\n                    point = location.Point\r\n                    transformed_point = transform.OfPoint(point)\r\n                    \r\n                    # Agregar room a la lista con su ID y transform\r\n                    rooms_in_link.append((room, room_name, (transformed_point.X, transformed_point.Y, transformed_point.Z)))\r\n                except Exception as e:\r\n                    rooms_in_link.append(f\"Error processing room ID {room.Id}: {e}\")\r\n    except Exception as e:\r\n        rooms_in_link.append(f\"Error processing link instance: {e}\")\r\n\r\n# Extraer solo los elementos Room para el nodo de geometría\r\nrooms = [room[0] for room in rooms_in_link]\r\n\r\nOUT = rooms\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "7e5eefa2e6dc479f9595a74ee07084fe",
+      "Inputs": [
+        {
+          "Id": "97db18221fea49e9b538b6258bd9efee",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "5fd64e1156ba4f4a843fdfcc03c0fe7d",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
+      "NodeType": "StringInputNode",
+      "InputValue": "DUCTO HVAC",
+      "Id": "3a418008582d4ef78b83d18f576d5f98",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a00d74bcff3c4889971418864f3f348b",
+          "Name": "",
+          "Description": "String",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crea una cadena"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nclr.AddReference('RevitServices')\r\nfrom Autodesk.Revit.DB import *\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\n# Obtener inputs\r\nrooms = UnwrapElement(IN[0])  # Lista de rooms extraídos\r\ntarget_room_name = IN[1]      # Nombre del room objetivo\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nactive_view = doc.ActiveView\r\n\r\n# Inicializar resultados\r\nmatching_rooms = []\r\nelements_in_rooms = []\r\n\r\n# Asegurarse de que target_room_name es una cadena\r\nif not isinstance(target_room_name, str):\r\n    OUT = \"El nombre del room objetivo debe ser una cadena.\"\r\nelse:\r\n    # Buscar los rooms que coincidan con el nombre objetivo\r\n    for room in rooms:\r\n        if room.get_Parameter(BuiltInParameter.ROOM_NAME).AsString() == target_room_name:\r\n            matching_rooms.append(room)\r\n\r\n    # Obtener todos los elementos modelados en la vista actual\r\n    include_categories = [\r\n        BuiltInCategory.OST_Furniture,\r\n        BuiltInCategory.OST_GenericModel,\r\n        BuiltInCategory.OST_SpecialityEquipment,\r\n        BuiltInCategory.OST_Casework,\r\n        BuiltInCategory.OST_Doors,\r\n        BuiltInCategory.OST_Windows,\r\n        BuiltInCategory.OST_MechanicalEquipment,\r\n        BuiltInCategory.OST_PlumbingFixtures,\r\n        BuiltInCategory.OST_LightingFixtures,\r\n        BuiltInCategory.OST_ElectricalEquipment,\r\n        BuiltInCategory.OST_PipeAccessory,\r\n        BuiltInCategory.OST_PipeFitting,\r\n        BuiltInCategory.OST_PipeCurves,\r\n        BuiltInCategory.OST_DuctAccessory,\r\n        BuiltInCategory.OST_DuctFitting,\r\n        BuiltInCategory.OST_DuctCurves\r\n        # Agrega más categorías si es necesario\r\n    ]\r\n\r\n    collector = FilteredElementCollector(doc, active_view.Id).WhereElementIsNotElementType()\r\n\r\n    # Obtener la transformación del vínculo\r\n    link_instances = FilteredElementCollector(doc, active_view.Id).OfClass(RevitLinkInstance)\r\n\r\n    for room in matching_rooms:\r\n        try:\r\n            # Obtener la transformación del vínculo para este room\r\n            link_instance = next((li for li in link_instances if room.Document == li.GetLinkDocument()), None)\r\n            if link_instance:\r\n                transform = link_instance.GetTransform()\r\n\r\n                # Obtener la geometría del room\r\n                room_bbox = room.get_BoundingBox(doc.ActiveView)\r\n                if room_bbox:\r\n                    # Transformar el bounding box del room\r\n                    transformed_bbox = BoundingBoxXYZ()\r\n                    transformed_bbox.Min = transform.OfPoint(room_bbox.Min)\r\n                    transformed_bbox.Max = transform.OfPoint(room_bbox.Max)\r\n\r\n                    for element in collector:\r\n                        if element.Category is None or element.Category.Id.IntegerValue not in [int(cat) for cat in include_categories]:\r\n                            continue\r\n                        try:\r\n                            element_bbox = element.get_BoundingBox(doc.ActiveView)\r\n                            if element_bbox:\r\n                                if (element_bbox.Min.X <= transformed_bbox.Max.X and element_bbox.Max.X >= transformed_bbox.Min.X and\r\n                                    element_bbox.Min.Y <= transformed_bbox.Max.Y and element_bbox.Max.Y >= transformed_bbox.Min.Y and\r\n                                    element_bbox.Min.Z <= transformed_bbox.Max.Z and element_bbox.Max.Z >= transformed_bbox.Min.Z):\r\n                                    elements_in_rooms.append(element)\r\n                        except Exception as e:\r\n                            elements_in_rooms.append(f\"Error processing element ID {element.Id}: {e}\")\r\n        except Exception as e:\r\n            elements_in_rooms.append(f\"Error processing room bounding box: {e}\")\r\n\r\nOUT = elements_in_rooms\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "59247217ba4541f7b16cb90b2abbaa3e",
+      "Inputs": [
+        {
+          "Id": "1eca6e6343534124bf62abf6d67c2d2a",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "f7dda17a09c24d7988017662d7b5370f",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "ffa7ff648cba44049e6ac2c15a910326",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nclr.AddReference('RevitServices')\r\nfrom Autodesk.Revit.DB import *\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\n# Obtener inputs\r\nelements = UnwrapElement(IN[0])  # Lista de elementos extraídos\r\ncomment = IN[1]  # Comentario a insertar en los elementos\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Iniciar transacción\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\nfor element in elements:\r\n    try:\r\n        # Obtener el parámetro \"Comentarios\"\r\n        comment_param = element.LookupParameter(\"Comentarios\")\r\n        \r\n        if comment_param is not None and comment_param.StorageType == StorageType.String:\r\n            # Asignar el comentario\r\n            comment_param.Set(comment)\r\n        else:\r\n            OUT = f\"El elemento con ID {element.Id} no tiene el parámetro 'Comentarios' o el tipo de almacenamiento no es String.\"\r\n    \r\n    except Exception as e:\r\n        OUT = f\"Error procesando el elemento con ID {element.Id}: {e}\"\r\n\r\n# Finalizar transacción\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = \"Comentarios agregados correctamente.\"\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "502165c77e3446288529876d30a69716",
+      "Inputs": [
+        {
+          "Id": "b79d23b0f8de4b5f94b5fe4b1c539f68",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "57614a41e89c460fac2cbbbee85f0d46",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "063fe8b415384d00a306cb560d10ee67",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
+      "NodeType": "StringInputNode",
+      "InputValue": "YASER SANCHEZ",
+      "Id": "1892a394ecfd4a02a7c6a9787f075e9d",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "4645f961d1194187af316ec0fa99d85f",
+          "Name": "",
+          "Description": "String",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crea una cadena"
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "5fd64e1156ba4f4a843fdfcc03c0fe7d",
+      "End": "1eca6e6343534124bf62abf6d67c2d2a",
+      "Id": "f6d05e4523084879899631349290940e",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "a00d74bcff3c4889971418864f3f348b",
+      "End": "f7dda17a09c24d7988017662d7b5370f",
+      "Id": "f67431a6a9124fc2b5a787e708600794",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "ffa7ff648cba44049e6ac2c15a910326",
+      "End": "b79d23b0f8de4b5f94b5fe4b1c539f68",
+      "Id": "975e9ad80f814162bc26dfe65f0cf1c8",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "4645f961d1194187af316ec0fa99d85f",
+      "End": "57614a41e89c460fac2cbbbee85f0d46",
+      "Id": "8fa175aea1ae4860abae5b59a04f0311",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Propiedades",
+      "Version": "2.16",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "3.0",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "Ninguno",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.16.2.5624",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Vista preliminar en segundo plano",
+      "EyeX": 85.472450256347656,
+      "EyeY": 11.636192321777344,
+      "EyeZ": -105.96841430664063,
+      "LookX": 0.23538970947265625,
+      "LookY": -0.33693408966064453,
+      "LookZ": -0.4410247802734375,
+      "UpX": 0.173332080245018,
+      "UpY": 0.92977654933929443,
+      "UpZ": -0.32476386427879333
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "7e5eefa2e6dc479f9595a74ee07084fe",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": -433.763565575078,
+        "Y": 798.79143528014538
+      },
+      {
+        "Name": "String",
+        "ShowGeometry": true,
+        "Id": "3a418008582d4ef78b83d18f576d5f98",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 64.23560624519655,
+        "Y": 967.95381199132407
+      },
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "59247217ba4541f7b16cb90b2abbaa3e",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 420.85459024448551,
+        "Y": 784.30996489149948
+      },
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "502165c77e3446288529876d30a69716",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1131.1798462253737,
+        "Y": 782.5185548189786
+      },
+      {
+        "Name": "String",
+        "ShowGeometry": true,
+        "Id": "1892a394ecfd4a02a7c6a9787f075e9d",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 715.96059578595168,
+        "Y": 905.98175802004835
+      }
+    ],
+    "Annotations": [],
+    "X": 309.01494201682181,
+    "Y": 28.30919243426996,
+    "Zoom": 0.44981028948618929
+  }
+}

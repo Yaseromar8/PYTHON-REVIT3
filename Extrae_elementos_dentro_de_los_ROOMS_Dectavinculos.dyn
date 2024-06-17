@@ -1,0 +1,241 @@
+{
+  "Uuid": "8bced654-96c0-4356-8ee2-7bc0e567e3f9",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Extrae_elementos_dentro_de_los_ROOMS_Dectavinculos",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Architecture import Room\r\nclr.AddReference('RevitServices')\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Asegurarse de que estamos desempaquetando correctamente los elementos\r\nroom_input = UnwrapElement(IN[0])\r\n\r\n# Verificar si el room_input es una lista\r\nif isinstance(room_input, list):\r\n    if len(room_input) > 0:\r\n        room = room_input[0]\r\n    else:\r\n        room = None\r\nelse:\r\n    room = room_input\r\n\r\n# Inicializar resultados\r\nelements_in_room = []\r\n\r\n# Verificar si el room es None\r\nif room is None:\r\n    elements_in_room.append(\"No room was selected.\")\r\nelse:\r\n    # Verificar si el elemento es un Room de Revit\r\n    if isinstance(room, Room):\r\n        try:\r\n            # Obtener el BoundingBox del Room\r\n            room_bbox = room.get_BoundingBox(doc.ActiveView)\r\n            \r\n            if room_bbox is None:\r\n                elements_in_room.append(\"Room does not have a bounding box in the active view.\")\r\n            else:\r\n                # Obtener todos los elementos en la vista actual\r\n                collector = FilteredElementCollector(doc, doc.ActiveView.Id).WhereElementIsNotElementType()\r\n\r\n                # Tipos de elementos que representan objetos modelados, excluyendo puertas, ventanas y modelos genéricos\r\n                exclude_categories = [\r\n                    BuiltInCategory.OST_Doors,\r\n                    BuiltInCategory.OST_Windows,\r\n                    BuiltInCategory.OST_GenericModel\r\n                ]\r\n\r\n                include_categories = [\r\n                    BuiltInCategory.OST_Furniture,\r\n                    BuiltInCategory.OST_SpecialityEquipment,\r\n                    BuiltInCategory.OST_Casework,\r\n                    BuiltInCategory.OST_MechanicalEquipment,\r\n                    BuiltInCategory.OST_PlumbingFixtures,\r\n                    BuiltInCategory.OST_LightingFixtures,\r\n                    BuiltInCategory.OST_ElectricalEquipment,\r\n                    BuiltInCategory.OST_PipeAccessory,\r\n                    BuiltInCategory.OST_PipeFitting,\r\n                    BuiltInCategory.OST_PipeCurves,\r\n                    BuiltInCategory.OST_DuctAccessory,\r\n                    BuiltInCategory.OST_DuctFitting,\r\n                    BuiltInCategory.OST_DuctCurves\r\n                    # Agrega más categorías si es necesario\r\n                ]\r\n\r\n                # Verificar la intersección entre el bounding box del room y los bounding boxes de los elementos\r\n                for element in collector:\r\n                    if element.Category is None or element.Category.Id.IntegerValue in [int(cat) for cat in exclude_categories]:\r\n                        continue\r\n                    if element.Category.Id.IntegerValue not in [int(cat) for cat in include_categories]:\r\n                        continue\r\n\r\n                    element_bbox = element.get_BoundingBox(doc.ActiveView)\r\n                    if element_bbox is None:\r\n                        continue\r\n                    if (element_bbox.Min.X <= room_bbox.Max.X and element_bbox.Max.X >= room_bbox.Min.X and\r\n                        element_bbox.Min.Y <= room_bbox.Max.Y and element_bbox.Max.Y >= room_bbox.Min.Y and\r\n                        element_bbox.Min.Z <= room_bbox.Max.Z and element_bbox.Max.Z >= room_bbox.Min.Z):\r\n                        elements_in_room.append(element)\r\n\r\n                # Obtener todos los RevitLinkInstances en el documento\r\n                link_instances = FilteredElementCollector(doc).OfClass(RevitLinkInstance)\r\n\r\n                for link_instance in link_instances:\r\n                    # Obtener el documento vinculado\r\n                    link_doc = link_instance.GetLinkDocument()\r\n\r\n                    if link_doc:\r\n                        # Obtener todos los elementos en el documento vinculado\r\n                        linked_collector = FilteredElementCollector(link_doc).WhereElementIsNotElementType()\r\n\r\n                        for linked_element in linked_collector:\r\n                            if linked_element.Category is None or linked_element.Category.Id.IntegerValue in [int(cat) for cat in exclude_categories]:\r\n                                continue\r\n                            if linked_element.Category.Id.IntegerValue not in [int(cat) for cat in include_categories]:\r\n                                continue\r\n\r\n                            linked_bbox = linked_element.get_BoundingBox(None)\r\n                            if linked_bbox is None:\r\n                                continue\r\n                            # Transformar el BoundingBox del elemento vinculado a las coordenadas del modelo principal\r\n                            transform = link_instance.GetTransform()\r\n                            transformed_min = transform.OfPoint(linked_bbox.Min)\r\n                            transformed_max = transform.OfPoint(linked_bbox.Max)\r\n                            transformed_bbox = BoundingBoxXYZ()\r\n                            transformed_bbox.Min = transformed_min\r\n                            transformed_bbox.Max = transformed_max\r\n                            if (transformed_bbox.Min.X <= room_bbox.Max.X and transformed_bbox.Max.X >= room_bbox.Min.X and\r\n                                transformed_bbox.Min.Y <= room_bbox.Max.Y and transformed_bbox.Max.Y >= room_bbox.Min.Y and\r\n                                transformed_bbox.Min.Z <= room_bbox.Max.Z and transformed_bbox.Max.Z >= room_bbox.Min.Z):\r\n                                elements_in_room.append(linked_element)\r\n\r\n        except Exception as e:\r\n            elements_in_room.append(\"Error in obtaining room bounding box: {}\".format(str(e)))\r\n    else:\r\n        elements_in_room.append(\"Selected element is not a Revit Room\")\r\n\r\nOUT = elements_in_room\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "59cda59a86ab4b99a241b754b4013f43",
+      "Inputs": [
+        {
+          "Id": "981430bb35724838a93657ae5df4cffd",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "fd2c3c07662449d6a56ca3c689e30499",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "Dynamo.Nodes.DSModelElementSelection, DSRevitNodesUI",
+      "NodeType": "ExtensionNode",
+      "InstanceId": [
+        "1816e724-24ac-4965-a59e-8562c85d662f-02500513"
+      ],
+      "Id": "3d316fbb34864e4a8ec9af059e9b17dc",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "f80b7f4819514ff79f04c091015adb62",
+          "Name": "Element",
+          "Description": "Los elementos seleccionados",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Revit.Elements.Element.Geometry",
+      "Id": "4e4d5cfaf72842dea7f3da3edf257236",
+      "Inputs": [
+        {
+          "Id": "878a867636ca406fa37dfe43e356f333",
+          "Name": "element",
+          "Description": "Revit.Elements.Element",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "0fff2bb9bf1a47eda3cddcaf11c3f62a",
+          "Name": "var[]",
+          "Description": "var[]",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Obtiene toda la Geometry asociada con este objeto.\n\nElement.Geometry ( ): var[]"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "NodeType": "ExtensionNode",
+      "Id": "b4b2fa0e374a477080299980721833dd",
+      "Inputs": [
+        {
+          "Id": "c5730cf3f33a497e9078dede1627c308",
+          "Name": "",
+          "Description": "Nodo desde el que se mostrará la salida",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "4aaf5699d09b44e08937a5f08aa83ad4",
+          "Name": "",
+          "Description": "Salida del nodo",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualice la salida del nodo."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "fd2c3c07662449d6a56ca3c689e30499",
+      "End": "878a867636ca406fa37dfe43e356f333",
+      "Id": "d6f0c8e8a70948cfbad9d814dfaa4d36",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "fd2c3c07662449d6a56ca3c689e30499",
+      "End": "c5730cf3f33a497e9078dede1627c308",
+      "Id": "e1be47ec9a1f46edae1229f8310bc180",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "f80b7f4819514ff79f04c091015adb62",
+      "End": "981430bb35724838a93657ae5df4cffd",
+      "Id": "858c1cfc7a3649ceab639def7a5d9b63",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Propiedades",
+      "Version": "2.16",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "3.0",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "Ninguno",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.16.2.5624",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Vista preliminar en segundo plano",
+      "EyeX": 41.253177642822266,
+      "EyeY": 34.9516716003418,
+      "EyeZ": 16.483791351318359,
+      "LookX": -6.5171890258789063,
+      "LookY": -11.055463790893555,
+      "LookZ": -31.874343872070313,
+      "UpX": -0.022240696474909782,
+      "UpY": 0.993768036365509,
+      "UpZ": -0.10922715812921524
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "59cda59a86ab4b99a241b754b4013f43",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 429.80019631424528,
+        "Y": -11.555044873911669
+      },
+      {
+        "Name": "Select Model Element",
+        "ShowGeometry": true,
+        "Id": "3d316fbb34864e4a8ec9af059e9b17dc",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 28.848217645308409,
+        "Y": -16.632132334710434
+      },
+      {
+        "Name": "Element.Geometry",
+        "ShowGeometry": true,
+        "Id": "4e4d5cfaf72842dea7f3da3edf257236",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 851.7981682670528,
+        "Y": -92.703895231391755
+      },
+      {
+        "Name": "Watch",
+        "ShowGeometry": true,
+        "Id": "b4b2fa0e374a477080299980721833dd",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 818.67463223623668,
+        "Y": 112.28853095572106
+      }
+    ],
+    "Annotations": [],
+    "X": -11.361625688638242,
+    "Y": 269.37416252687797,
+    "Zoom": 0.66404894567960515
+  }
+}

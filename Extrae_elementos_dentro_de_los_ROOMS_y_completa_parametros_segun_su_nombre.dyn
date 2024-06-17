@@ -1,0 +1,317 @@
+{
+  "Uuid": "6683fe51-c7a1-435e-909a-1f8d0d66caab",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Extrae_elementos_dentro_de_los_ROOMS_y_completa_parametros_segun_su_nombre",
+  "ElementResolver": {
+    "ResolutionMap": {
+      "SpatialElement": {
+        "Key": "Orchid.RevitProject.Elements.SpatialElement",
+        "Value": "OrchidRB.dll"
+      },
+      "Room": {
+        "Key": "Revit.Elements.Room",
+        "Value": "RevitNodes.dll"
+      }
+    }
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "Dynamo.Nodes.DSModelElementSelection, DSRevitNodesUI",
+      "NodeType": "ExtensionNode",
+      "InstanceId": [
+        "479ca158-5a78-42d2-97f7-8b7ea6382185-0005cc21"
+      ],
+      "Id": "4f17625a1b104f8398aae07ab9bdc8cc",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "6fc5640e036f45e29b16c0d6aa3cc2b4",
+          "Name": "Element",
+          "Description": "Los elementos seleccionados",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Architecture import Room\r\nclr.AddReference('RevitServices')\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Asegurarse de que estamos desempaquetando correctamente los elementos\r\nroom_input = UnwrapElement(IN[0])\r\n\r\n# Verificar si el room_input es una lista\r\nif isinstance(room_input, list):\r\n    if len(room_input) > 0:\r\n        room = room_input[0]\r\n    else:\r\n        room = None\r\nelse:\r\n    room = room_input\r\n\r\n# Inicializar resultados\r\nelements_in_room = []\r\n\r\n# Verificar si el room es None\r\nif room is None:\r\n    elements_in_room.append(\"No room was selected.\")\r\nelse:\r\n    # Verificar si el elemento es un Room de Revit\r\n    if isinstance(room, Room):\r\n        try:\r\n            # Obtener el BoundingBox del Room\r\n            room_bbox = room.get_BoundingBox(doc.ActiveView)\r\n            \r\n            if room_bbox is None:\r\n                elements_in_room.append(\"Room does not have a bounding box in the active view.\")\r\n            else:\r\n                # Obtener todos los elementos en la vista actual\r\n                collector = FilteredElementCollector(doc, doc.ActiveView.Id).WhereElementIsNotElementType()\r\n\r\n                # Tipos de elementos que representan objetos modelados\r\n                include_categories = [\r\n                    BuiltInCategory.OST_Furniture,\r\n                    BuiltInCategory.OST_GenericModel,\r\n                    BuiltInCategory.OST_SpecialityEquipment,\r\n                    BuiltInCategory.OST_Casework,\r\n                    BuiltInCategory.OST_Doors,\r\n                    BuiltInCategory.OST_Windows,\r\n                    BuiltInCategory.OST_MechanicalEquipment,\r\n                    BuiltInCategory.OST_PlumbingFixtures,\r\n                    BuiltInCategory.OST_LightingFixtures,\r\n                    BuiltInCategory.OST_ElectricalEquipment,\r\n                    BuiltInCategory.OST_PipeAccessory,\r\n                    BuiltInCategory.OST_PipeFitting,\r\n                    BuiltInCategory.OST_PipeCurves,\r\n                    BuiltInCategory.OST_DuctAccessory,\r\n                    BuiltInCategory.OST_DuctFitting,\r\n                    BuiltInCategory.OST_DuctCurves\r\n                    # Agrega más categorías si es necesario\r\n                ]\r\n\r\n                # Verificar la intersección entre el bounding box del room y los bounding boxes de los elementos\r\n                for element in collector:\r\n                    if element.Category is None or element.Category.Id.IntegerValue not in [int(cat) for cat in include_categories]:\r\n                        continue\r\n\r\n                    element_bbox = element.get_BoundingBox(doc.ActiveView)\r\n                    if element_bbox is None:\r\n                        continue\r\n                    if (element_bbox.Min.X <= room_bbox.Max.X and element_bbox.Max.X >= room_bbox.Min.X and\r\n                        element_bbox.Min.Y <= room_bbox.Max.Y and element_bbox.Max.Y >= room_bbox.Min.Y and\r\n                        element_bbox.Min.Z <= room_bbox.Max.Z and element_bbox.Max.Z >= room_bbox.Min.Z):\r\n                        elements_in_room.append(element)\r\n        except Exception as e:\r\n            elements_in_room.append(\"Error in obtaining room bounding box: {}\".format(str(e)))\r\n    else:\r\n        elements_in_room.append(\"Selected element is not a Revit Room\")\r\n\r\nOUT = elements_in_room\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "0895f52648a645aea7d4aa41dffb79a4",
+      "Inputs": [
+        {
+          "Id": "e8935ec411f84f6ba6b571071759f33f",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "d62d08dc242a49939b45ed2059b0c075",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nclr.AddReference('RevitServices')\r\nfrom Autodesk.Revit.DB import *\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\n# Obtener el documento actual de Revit\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Obtener los elementos de entrada (resultados del script anterior)\r\nelements = UnwrapElement(IN[0])\r\n\r\n# El nombre del parámetro que deseas actualizar\r\nparam_name = IN[1]\r\n\r\n# El nuevo valor que deseas establecer en el parámetro\r\nnew_value = IN[2]\r\n\r\n# Iniciar una transacción en Revit\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\n# Actualizar el parámetro especificado de cada elemento\r\nfor element in elements:\r\n    try:\r\n        param = element.LookupParameter(param_name)\r\n        if param is not None:\r\n            # Determinar el tipo de almacenamiento del parámetro y establecer el valor adecuadamente\r\n            if param.StorageType == StorageType.String:\r\n                param.Set(new_value)\r\n            elif param.StorageType == StorageType.Integer:\r\n                param.Set(int(new_value))\r\n            elif param.StorageType == StorageType.Double:\r\n                param.Set(float(new_value))\r\n            elif param.StorageType == StorageType.ElementId:\r\n                param.Set(ElementId(int(new_value)))\r\n        else:\r\n            OUT.append(\"Parameter '{}' not found in element ID {}\".format(param_name, element.Id))\r\n    except Exception as e:\r\n        # En caso de error, agregar el mensaje de error a los resultados\r\n        OUT.append(\"Error updating element ID {}: {}\".format(element.Id, str(e)))\r\n\r\n# Finalizar la transacción\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# Devolver los elementos actualizados\r\nOUT = elements\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "d901968aa7be4e7c9c6dcaf57d753814",
+      "Inputs": [
+        {
+          "Id": "6caf78267445456fa60e94ec6a6ff12c",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "7276721373234fc58862eca5890a4147",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "4c56e14a86d142eb81b8316d0f51d840",
+          "Name": "IN[2]",
+          "Description": "Input #2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "c9302fdc30ee40d4928a44a77a89a5f3",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
+      "NodeType": "StringInputNode",
+      "InputValue": "Comentarios",
+      "Id": "88d78b5780f04062ae0853f72fb66120",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a97a0b9b03984331ad215575a8aa320a",
+          "Name": "",
+          "Description": "String",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crea una cadena"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference('RevitAPI')\r\nclr.AddReference('RevitServices')\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Architecture import Room\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\n# Obtener el documento actual de Revit\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n# Obtener el elemento de entrada\r\nroom = UnwrapElement(IN[0])\r\n\r\n# Obtener el parámetro incorporado \"ROOM_NAME\"\r\nparam = room.get_Parameter(BuiltInParameter.ROOM_NAME)\r\n\r\n# Obtener el nombre del Room si el parámetro existe\r\nroom_name = param.AsString() if param else \"BuiltInParameter 'ROOM_NAME' not found\"\r\n\r\n# Devolver el nombre del Room\r\nOUT = room_name\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "2b253a3033674355b28fce1c1b44d3c8",
+      "Inputs": [
+        {
+          "Id": "f7f6cc096fd740ccb69ad45c7c53ede6",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "1ec7f0ccd1684718898c9cfc22113e95",
+          "Name": "OUT",
+          "Description": "Resultado de la secuencia de comandos de Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Ejecuta una secuencia de comandos de Python incrustada."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "6fc5640e036f45e29b16c0d6aa3cc2b4",
+      "End": "e8935ec411f84f6ba6b571071759f33f",
+      "Id": "b5c4d33ed831414bb38f5f21da31147f",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "6fc5640e036f45e29b16c0d6aa3cc2b4",
+      "End": "f7f6cc096fd740ccb69ad45c7c53ede6",
+      "Id": "e27b7200273c4fa5a685c06ca4f9babd",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "d62d08dc242a49939b45ed2059b0c075",
+      "End": "6caf78267445456fa60e94ec6a6ff12c",
+      "Id": "87e8c998d4a54595876c46e93dff2fdf",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "a97a0b9b03984331ad215575a8aa320a",
+      "End": "7276721373234fc58862eca5890a4147",
+      "Id": "a0542979480948c482be94f42914b457",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "1ec7f0ccd1684718898c9cfc22113e95",
+      "End": "4c56e14a86d142eb81b8316d0f51d840",
+      "Id": "873c234bfed94a50bb5192f6d1662413",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Propiedades",
+      "Version": "2.16",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "3.0",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "Ninguno",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.16.2.5624",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Vista preliminar en segundo plano",
+      "EyeX": -19.248364448547363,
+      "EyeY": 6.3242700099945068,
+      "EyeZ": 2.4041347503662109,
+      "LookX": 3.8606758117675781,
+      "LookY": -3.185084342956543,
+      "LookZ": -6.8826274871826172,
+      "UpX": 0.081586755812168121,
+      "UpY": 0.9859960675239563,
+      "UpZ": -0.14544911682605743
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Select Model Element",
+        "ShowGeometry": true,
+        "Id": "4f17625a1b104f8398aae07ab9bdc8cc",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": -137.17027788500411,
+        "Y": -72.683554606806979
+      },
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "0895f52648a645aea7d4aa41dffb79a4",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 402.96889615197983,
+        "Y": -321.51180797091467
+      },
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "d901968aa7be4e7c9c6dcaf57d753814",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 839.66511023391217,
+        "Y": -94.656427138633546
+      },
+      {
+        "Name": "String",
+        "ShowGeometry": true,
+        "Id": "88d78b5780f04062ae0853f72fb66120",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 408.01470912439356,
+        "Y": -75.0484677240782
+      },
+      {
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Id": "2b253a3033674355b28fce1c1b44d3c8",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 400.72565176777096,
+        "Y": 188.0169703697502
+      }
+    ],
+    "Annotations": [],
+    "X": 214.27935980065894,
+    "Y": 368.64724060900875,
+    "Zoom": 0.92323237022200544
+  }
+}
